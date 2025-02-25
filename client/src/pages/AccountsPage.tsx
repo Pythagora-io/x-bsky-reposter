@@ -38,7 +38,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Twitter, AtSign, Link, PlusCircle, RefreshCw } from "lucide-react";
 
 type Account = {
-  _id: string;
+  id: string;
   username: string;
   name: string;
   profileImage: string;
@@ -246,7 +246,7 @@ export function AccountsPage() {
             {loading ? (
               <div className="animate-pulse space-y-3">
                 {[1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
+                  <div key={`item-${i}`} className="flex items-center gap-3">
                     <div key={`circle-${i}`} className="rounded-full bg-slate-200 h-10 w-10"></div>
                     <div key={`content-${i}`} className="flex-1 space-y-2">
                       <div key={`title-${i}`} className="h-4 bg-slate-200 rounded w-3/4"></div>
@@ -259,11 +259,11 @@ export function AccountsPage() {
               <div className="space-y-4">
                 {twitterAccounts.map((account) => (
                   <div
-                    key={account._id}
+                    key={account.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border ${
-                      selectedTwitterId === account._id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                      selectedTwitterId === account.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
                     } hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors`}
-                    onClick={() => setSelectedTwitterId(account._id)}
+                    onClick={() => setSelectedTwitterId(account.id)}
                   >
                     <Avatar>
                       <AvatarImage src={account.profileImage} alt={account.name} />
@@ -355,7 +355,7 @@ export function AccountsPage() {
             {loading ? (
               <div className="animate-pulse space-y-3">
                 {[1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
+                  <div key={`item-${i}`} className="flex items-center gap-3">
                     <div key={`circle-${i}`} className="rounded-full bg-slate-200 h-10 w-10"></div>
                     <div key={`content-${i}`} className="flex-1 space-y-2">
                       <div key={`title-${i}`} className="h-4 bg-slate-200 rounded w-3/4"></div>
@@ -368,11 +368,11 @@ export function AccountsPage() {
               <div className="space-y-4">
                 {blueskyAccounts.map((account) => (
                   <div
-                    key={account._id}
+                    key={account.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border ${
-                      selectedBlueskyId === account._id ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : ''
+                      selectedBlueskyId === account.id ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : ''
                     } hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors`}
-                    onClick={() => setSelectedBlueskyId(account._id)}
+                    onClick={() => setSelectedBlueskyId(account.id)}
                   >
                     <Avatar>
                       <AvatarImage src={account.profileImage} alt={account.name} />
@@ -424,7 +424,7 @@ export function AccountsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {twitterAccounts.map((account) => (
-                    <SelectItem key={account._id} value={account._id}>
+                    <SelectItem key={account.id} value={account.id}>
                       {account.name} ({account.username})
                     </SelectItem>
                   ))}
@@ -439,7 +439,7 @@ export function AccountsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {blueskyAccounts.map((account) => (
-                    <SelectItem key={account._id} value={account._id}>
+                    <SelectItem key={account.id} value={account.id}>
                       {account.name} ({account.username})
                     </SelectItem>
                   ))}
