@@ -1,4 +1,3 @@
-// Load environment variables
 require("dotenv").config();
 const mongoose = require("mongoose");
 const express = require("express");
@@ -13,6 +12,7 @@ const cors = require("cors");
 const accountRoutes = require('./routes/accountRoutes');
 const twitterAccountRoutes = require('./routes/twitterAccountRoutes'); // New route import
 const blueskyAccountRoutes = require('./routes/blueskyAccountRoutes.js'); // New route import
+const accountLinkRoutes = require('./routes/accountLinkRoutes.js'); // New route import
 
 if (!process.env.DATABASE_URL) {
   console.error("Error: DATABASE_URL variables in .env missing.");
@@ -50,6 +50,7 @@ app.use('/api/accounts', accountRoutes);
 // Use the new Twitter account routes
 app.use('/api/accounts/twitter', twitterAccountRoutes); // New route setup
 app.use('/api/accounts/bluesky', blueskyAccountRoutes); // New route setup
+app.use('/api/accounts', accountLinkRoutes); // New route setup
 
 // If no routes handled the request, it's a 404
 app.use((req, res, next) => {

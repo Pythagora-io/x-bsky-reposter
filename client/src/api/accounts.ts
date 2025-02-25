@@ -111,3 +111,31 @@ export const linkAccounts = async (data: { twitterAccountId: string; blueskyAcco
     throw new Error(error?.response?.data?.error || error.message);
   }
 };
+
+// Description: Get all linked accounts for the current user
+// Endpoint: GET /api/accounts/links
+// Request: {}
+// Response: { success: boolean, links: Array<{_id: string, twitterAccount: Account, blueskyAccount: Account, createdAt: string}> }
+export const getLinkedAccounts = async () => {
+  try {
+    const response = await api.get('/api/accounts/links');
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    throw new Error(error?.response?.data?.error || error.message);
+  }
+};
+
+// Description: Remove a link between Twitter and BlueSky accounts
+// Endpoint: DELETE /api/accounts/links/:linkId
+// Request: {}
+// Response: { success: boolean, message: string }
+export const removeAccountLink = async (linkId: string) => {
+  try {
+    const response = await api.delete(`/api/accounts/links/${linkId}`);
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    throw new Error(error?.response?.data?.error || error.message);
+  }
+};

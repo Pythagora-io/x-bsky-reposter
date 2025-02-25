@@ -5,7 +5,9 @@ import {
   getBlueskyAccounts,
   linkAccounts,
   connectTwitterAccount,
-  connectBlueskyAccount
+  connectBlueskyAccount,
+  getLinkedAccounts,
+  removeAccountLink
 } from "@/api/accounts";
 import {
   Card,
@@ -35,7 +37,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Twitter, AtSign, Link, PlusCircle, RefreshCw } from "lucide-react";
+import { Twitter, AtSign, Link, PlusCircle, RefreshCw, Trash2 } from "lucide-react";
 
 type Account = {
   id: string;
@@ -45,11 +47,20 @@ type Account = {
   connected: boolean;
 };
 
+type LinkedAccount = {
+  _id: string;
+  twitterAccount: Account;
+  blueskyAccount: Account;
+  createdAt: string;
+};
+
 export function AccountsPage() {
   const [twitterAccounts, setTwitterAccounts] = useState<Account[]>([]);
   const [blueskyAccounts, setBlueskyAccounts] = useState<Account[]>([]);
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [unlinkLoading, setUnlinkLoading] = useState<string | null>(null);
   const [selectedTwitterId, setSelectedTwitterId] = useState('');
   const [selectedBlueskyId, setSelectedBlueskyId] = useState('');
   const [newBlueskyUsername, setNewBlueskyUsername] = useState('');
@@ -66,13 +77,15 @@ export function AccountsPage() {
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const [twitterResponse, blueskyResponse] = await Promise.all([
+      const [twitterResponse, blueskyResponse, linkedResponse] = await Promise.all([
         getTwitterAccounts(),
-        getBlueskyAccounts()
+        getBlueskyAccounts(),
+        getLinkedAccounts()
       ]);
 
       setTwitterAccounts(twitterResponse.accounts);
       setBlueskyAccounts(blueskyResponse.accounts);
+      setLinkedAccounts(linkedResponse.links);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -182,6 +195,32 @@ export function AccountsPage() {
         title: "Error",
         description: error.message || "Failed to connect BlueSky account",
       });
+    }
+  };
+
+  const handleUnlinkAccounts = async (linkId: string) => {
+    try {
+      setUnlinkLoading(linkId);
+      const response = await removeAccountLink(linkId);
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Accounts unlinked successfully!",
+        });
+        // Update the linked accounts list
+        setLinkedAccounts(linkedAccounts.filter(link => link._id !== linkId));
+        // Refresh accounts to update connected status
+        fetchAccounts();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to unlink accounts",
+      });
+    } finally {
+      setUnlinkLoading(null);
     }
   };
 
@@ -467,6 +506,100 @@ export function AccountsPage() {
             )}
           </Button>
         </CardFooter>
+      </Card>
+
+      {/* Linked Accounts Section */}
+      <Card className="mt-6">
+        <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
+          <div className="flex items-center gap-2">
+            <Link className="h-5 w-5 text-amber-500" />
+            <CardTitle>Linked Accounts</CardTitle>
+          </div>
+          <CardDescription>View and manage your linked Twitter and BlueSky accounts</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {loading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2].map((i) => (
+                <div key={`linked-loading-${i}`} className="h-16 bg-slate-200 rounded"></div>
+              ))}
+            </div>
+          ) : linkedAccounts.length > 0 ? (
+            <div className="space-y-4">
+              {linkedAccounts.map((link) => (
+                <div key={link._id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <div className="flex items-center gap-6">
+                    {/* Twitter Account */}
+                    <div className="flex items-center gap-2">
+                      <Avatar>
+                        <AvatarImage src={link.twitterAccount?.profileImage} alt={link.twitterAccount?.name} />
+                        <AvatarFallback>
+                          {link.twitterAccount?.name ? link.twitterAccount.name[0] : 'T'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium flex items-center gap-1">
+                          <Twitter className="h-3 w-3 text-blue-500" />
+                          {link.twitterAccount?.name || 'Twitter Account'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {link.twitterAccount?.username || 'username'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Arrow indicating link */}
+                    <div className="text-muted-foreground">→</div>
+                    
+                    {/* BlueSky Account */}
+                    <div className="flex items-center gap-2">
+                      <Avatar>
+                        <AvatarImage src={link.blueskyAccount?.profileImage} alt={link.blueskyAccount?.name} />
+                        <AvatarFallback>
+                          {link.blueskyAccount?.name ? link.blueskyAccount.name[0] : 'B'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3 w-3 text-sky-500 fill-current">
+                            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                          </svg>
+                          {link.blueskyAccount?.name || 'BlueSky Account'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {link.blueskyAccount?.username || 'username'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Unlink button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleUnlinkAccounts(link._id)}
+                    disabled={unlinkLoading === link._id}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20"
+                  >
+                    {unlinkLoading === link._id ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10">
+              <Link className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+              <p>No linked accounts yet</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Use the Link Accounts section above to connect your Twitter and BlueSky accounts
+              </p>
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
