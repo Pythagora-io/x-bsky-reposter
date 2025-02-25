@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const { validatePassword, isPasswordHash } = require('../utils/password.js');
-const {randomUUID} = require("crypto");
+const { randomUUID } = require("crypto");
 
 // Define account schemas for Twitter and BlueSky accounts
 const twitterAccountSchema = new mongoose.Schema({
@@ -61,10 +61,22 @@ const blueskyAccountSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  accessJwt: {
+    type: String,
+    required: false,
+  },
+  refreshJwt: {
+    type: String,
+    required: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
     immutable: true,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
   },
 }, { _id: false });
 

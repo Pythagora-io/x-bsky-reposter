@@ -28,43 +28,84 @@ router.post('/connect', requireUser, async (req, res) => {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      return res.status(400).json({ error: 'Username/email and password are required' });
+      return res.status(400).json({
+        message: 'BlueSky identifier and password are required'
+      });
     }
 
-    // Authenticate with BlueSky
-    const blueskyAccount = await BlueSkyService.authenticate(identifier, password);
+    console.log(`Connecting BlueSky account for user ${req.user._id} with identifier: ${identifier}`);
 
-    // Check if this account is already connected to the user
-    const user = req.user;
-    const existingAccount = user.blueskyAccounts.find(account =>
-      account.username === blueskyAccount.handle || account.id === blueskyAccount.did
+    // Validate BlueSky credentials using BlueSky API
+    const authResult = await BlueSkyService.authenticate(identifier, password);
+
+    if (!authResult || !authResult.success) {
+      return res.status(401).json({
+        message: 'Invalid BlueSky credentials'
+      });
+    }
+
+    console.log(`Authentication successful for BlueSky account: ${authResult.handle}`);
+
+    // Get the user - using get method instead of findUserById
+    const user = await UserService.get(req.user._id);
+
+    // Check if this account is already connected
+    const existingAccount = user.blueskyAccounts.find(
+      account => account.id === authResult.did || account.username === authResult.handle
     );
 
     if (existingAccount) {
-      return res.status(400).json({ error: 'This BlueSky account is already connected to your profile' });
+      // Update the existing account
+      existingAccount.name = authResult.displayName;
+      existingAccount.profileImage = authResult.profileImage;
+      existingAccount.isConnected = true; // <-- Use isConnected instead of connected
+      existingAccount.accessJwt = authResult.accessJwt; // Store access token
+      existingAccount.refreshJwt = authResult.refreshJwt; // Store refresh token
+      existingAccount.updatedAt = new Date();
+
+      console.log(`Updated existing BlueSky account ${existingAccount.id}`);
+    } else {
+      // Add the new account
+      user.blueskyAccounts.push({
+        id: authResult.did,
+        username: authResult.handle,
+        name: authResult.displayName,
+        profileImage: authResult.profileImage,
+        isConnected: true, // <-- Use isConnected instead of connected
+        accessJwt: authResult.accessJwt, // Store access token
+        refreshJwt: authResult.refreshJwt, // Store refresh token
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      console.log(`Added new BlueSky account ${authResult.did}`);
     }
 
-    // Add the new BlueSky account to the user's accounts
-    const newAccount = {
-      id: blueskyAccount.did,
-      username: blueskyAccount.handle,
-      name: blueskyAccount.displayName || blueskyAccount.handle,
-      profileImage: blueskyAccount.profileImage || '',
-      isConnected: true,
-      createdAt: new Date()
-    };
-
-    // Update the user document with the new account
-    user.blueskyAccounts.push(newAccount);
     await user.save();
 
-    return res.status(201).json({
+    // Return the newly added/updated account
+    const addedAccount = user.blueskyAccounts.find(
+      account => account.id === authResult.did || account.username === authResult.handle
+    );
+
+    console.log(`Returning account details: ${JSON.stringify(addedAccount, null, 2)}`);
+
+    res.json({
       success: true,
-      account: newAccount
+      message: 'BlueSky account connected successfully',
+      account: {
+        id: addedAccount.id,
+        username: addedAccount.username,
+        name: addedAccount.name,
+        profileImage: addedAccount.profileImage,
+        isConnected: addedAccount.isConnected
+      }
     });
   } catch (error) {
     console.error('Error connecting BlueSky account:', error);
-    return res.status(500).json({ error: error.message });
+    res.status(500).json({
+      message: `Failed to connect BlueSky account: ${error.message}`
+    });
   }
 });
 
