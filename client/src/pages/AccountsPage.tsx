@@ -7,7 +7,8 @@ import {
   connectTwitterAccount,
   connectBlueskyAccount,
   getLinkedAccounts,
-  removeAccountLink
+  removeAccountLink,
+  getTwitterAuthUrl
 } from "@/api/accounts";
 import {
   Card,
@@ -37,7 +38,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Twitter, AtSign, Link, PlusCircle, RefreshCw, Trash2 } from "lucide-react";
+import { Twitter, AtSign, Link, PlusCircle, RefreshCw, Trash2, Loader2 } from "lucide-react";
 
 type Account = {
   id: string;
@@ -68,10 +69,93 @@ export function AccountsPage() {
   const [twitterAuthCode, setTwitterAuthCode] = useState('');
   const [openDialogTwitter, setOpenDialogTwitter] = useState(false);
   const [openDialogBluesky, setOpenDialogBluesky] = useState(false);
+  const [twitterConnectStep, setTwitterConnectStep] = useState<'initial' | 'redirecting' | 'connecting'>('initial');
+  const [oauthData, setOauthData] = useState<{ authUrl: string, state: string, codeVerifier: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchAccounts();
+  }, []);
+
+  // Check for OAuth callback params in URL when component mounts
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const twitterConnectStatus = urlParams.get('twitter_connect');
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+
+    if (code && state) {
+      // We have OAuth callback parameters
+      setTwitterConnectStep('connecting');
+
+      // Get stored code verifier
+      const codeVerifier = sessionStorage.getItem('twitter_oauth_code_verifier');
+      const savedState = sessionStorage.getItem('twitter_oauth_state');
+
+      if (state !== savedState) {
+        toast({
+          variant: "destructive",
+          title: "Security Error",
+          description: "OAuth state mismatch. Please try again.",
+        });
+        setTwitterConnectStep('initial');
+        return;
+      }
+
+      // Connect the account
+      connectTwitterAccount({ code, state, codeVerifier })
+        .then(response => {
+          toast({
+            title: "Success",
+            description: `Connected Twitter account @${response.account.username}`,
+          });
+          // Update accounts list
+          fetchTwitterAccounts();
+          // Clean up
+          sessionStorage.removeItem('twitter_oauth_state');
+          sessionStorage.removeItem('twitter_oauth_code_verifier');
+        })
+        .catch(error => {
+          toast({
+            variant: "destructive",
+            title: "Connection Error",
+            description: error.message,
+          });
+        })
+        .finally(() => {
+          setTwitterConnectStep('initial');
+
+          // Clean up URL
+          const url = new URL(window.location.href);
+          url.searchParams.delete('code');
+          url.searchParams.delete('state');
+          window.history.replaceState({}, document.title, url.toString());
+        });
+    } else if (twitterConnectStatus === 'success') {
+      toast({
+        title: "Success",
+        description: "Twitter account connected successfully!",
+      });
+      fetchTwitterAccounts();
+
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('twitter_connect');
+      window.history.replaceState({}, document.title, url.toString());
+    } else if (twitterConnectStatus === 'error') {
+      const errorMessage = urlParams.get('message') || 'Unknown error';
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: decodeURIComponent(errorMessage),
+      });
+
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('twitter_connect');
+      url.searchParams.delete('message');
+      window.history.replaceState({}, document.title, url.toString());
+    }
   }, []);
 
   const fetchAccounts = async () => {
@@ -83,7 +167,7 @@ export function AccountsPage() {
         getLinkedAccounts()
       ]);
 
-      setTwitterAccounts(twitterResponse.accounts);
+      setTwitterAccounts(twitterResponse.twitterAccounts);
       setBlueskyAccounts(blueskyResponse.accounts);
       setLinkedAccounts(linkedResponse.links);
     } catch (error) {
@@ -94,6 +178,19 @@ export function AccountsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTwitterAccounts = async () => {
+    try {
+      const twitterResponse = await getTwitterAccounts();
+      setTwitterAccounts(twitterResponse.twitterAccounts);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to fetch Twitter accounts",
+      });
     }
   };
 
@@ -132,34 +229,25 @@ export function AccountsPage() {
     }
   };
 
-  const handleConnectTwitter = async () => {
-    if (!twitterAuthCode.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please enter the Twitter authentication code",
-      });
-      return;
-    }
-
+  const handleStartTwitterConnect = async () => {
     try {
-      const response = await connectTwitterAccount(twitterAuthCode);
+      setTwitterConnectStep('redirecting');
+      const authData = await getTwitterAuthUrl();
+      setOauthData(authData);
 
-      if (response.success) {
-        toast({
-          title: "Success",
-          description: "Twitter account connected successfully!",
-        });
-        setTwitterAccounts([...twitterAccounts, response.account]);
-        setOpenDialogTwitter(false);
-        setTwitterAuthCode('');
-      }
+      // Save code verifier and state to session storage for after redirect
+      sessionStorage.setItem('twitter_oauth_state', authData.state);
+      sessionStorage.setItem('twitter_oauth_code_verifier', authData.codeVerifier);
+
+      // Redirect to Twitter OAuth page
+      window.location.href = authData.authUrl;
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to connect Twitter account",
+        title: "Connection Error",
+        description: error.message,
       });
+      setTwitterConnectStep('initial');
     }
   };
 
@@ -248,36 +336,35 @@ export function AccountsPage() {
                 <Twitter className="h-5 w-5 text-blue-500" />
                 <CardTitle>Twitter (X) Accounts</CardTitle>
               </div>
-              <Dialog open={openDialogTwitter} onOpenChange={setOpenDialogTwitter}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="flex items-center gap-1">
-                    <PlusCircle className="h-4 w-4" />
-                    Connect
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Connect Twitter (X) Account</DialogTitle>
-                    <DialogDescription>
-                      Enter the authentication code from Twitter to connect your account.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="twitter-code">Authentication Code</Label>
-                      <Input
-                        id="twitter-code"
-                        placeholder="Enter your Twitter auth code"
-                        value={twitterAuthCode}
-                        onChange={(e) => setTwitterAuthCode(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" onClick={handleConnectTwitter}>Connect Account</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <div className="space-y-3">
+                <h3 className="text-lg font-medium">Connect Twitter Account</h3>
+                <p className="text-sm text-muted-foreground">
+                  Connect your Twitter account to automatically repost your tweets to BlueSky.
+                </p>
+
+                <Button
+                  onClick={handleStartTwitterConnect}
+                  disabled={twitterConnectStep !== 'initial'}
+                  className="w-full"
+                >
+                  {twitterConnectStep === 'redirecting' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Preparing Connection...
+                    </>
+                  ) : twitterConnectStep === 'connecting' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Twitter className="mr-2 h-4 w-4" />
+                      Connect with Twitter
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             <CardDescription>Manage your connected Twitter (X) accounts</CardDescription>
           </CardHeader>
@@ -547,10 +634,10 @@ export function AccountsPage() {
                         </p>
                       </div>
                     </div>
-                    
+
                     {/* Arrow indicating link */}
                     <div className="text-muted-foreground">→</div>
-                    
+
                     {/* BlueSky Account */}
                     <div className="flex items-center gap-2">
                       <Avatar>
@@ -572,7 +659,7 @@ export function AccountsPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Unlink button */}
                   <Button
                     variant="ghost"

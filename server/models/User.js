@@ -21,9 +21,17 @@ const twitterAccountSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
-  isConnected: {
+  accessToken: {
+    type: String,
+    required: true,
+  },
+  refreshToken: {
+    type: String,
+    default: '',
+  },
+  connected: {
     type: Boolean,
-    default: true,
+    default: false,
   },
   createdAt: {
     type: Date,

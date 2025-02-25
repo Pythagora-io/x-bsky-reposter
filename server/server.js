@@ -13,6 +13,7 @@ const accountRoutes = require('./routes/accountRoutes');
 const twitterAccountRoutes = require('./routes/twitterAccountRoutes'); // New route import
 const blueskyAccountRoutes = require('./routes/blueskyAccountRoutes.js'); // New route import
 const accountLinkRoutes = require('./routes/accountLinkRoutes.js'); // New route import
+const postRoutes = require('./routes/postRoutes'); // New route import for post routes
 
 if (!process.env.DATABASE_URL) {
   console.error("Error: DATABASE_URL variables in .env missing.");
@@ -51,6 +52,7 @@ app.use('/api/accounts', accountRoutes);
 app.use('/api/accounts/twitter', twitterAccountRoutes); // New route setup
 app.use('/api/accounts/bluesky', blueskyAccountRoutes); // New route setup
 app.use('/api/accounts', accountLinkRoutes); // New route setup
+app.use('/api/posts', postRoutes); // New route setup for post routes
 
 // If no routes handled the request, it's a 404
 app.use((req, res, next) => {

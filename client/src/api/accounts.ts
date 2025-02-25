@@ -1,22 +1,41 @@
 import api from './api';
 
-// Description: Get current user's Twitter accounts
+// Description: Get Twitter accounts
 // Endpoint: GET /api/accounts/twitter
 // Request: {}
-// Response: { accounts: Array<{ id: string, username: string, name: string, profileImage: string, isConnected: boolean, createdAt: string }> }
+// Response: { twitterAccounts: Array<{ id: string, username: string, name: string, profileImage: string, connected: boolean }> }
 export const getTwitterAccounts = async () => {
   try {
     const response = await api.get('/api/accounts/twitter');
-    return { accounts: response.data.twitterAccounts.map(account => ({
-      id: account.id,
-      username: account.username,
-      name: account.name,
-      profileImage: account.profileImage,
-      isConnected: account.isConnected,
-    })) };
+    return response.data;
   } catch (error) {
-    console.error(error);
-    throw new Error(error?.response?.data?.error || error.message);
+    throw new Error(error?.response?.data?.message || error.message);
+  }
+};
+
+// Description: Get Twitter OAuth URL
+// Endpoint: GET /api/accounts/twitter/auth
+// Request: {}
+// Response: { authUrl: string, state: string, codeVerifier: string }
+export const getTwitterAuthUrl = async () => {
+  try {
+    const response = await api.get('/api/accounts/twitter/auth');
+    return response.data;
+  } catch (error) {
+    throw new Error(error?.response?.data?.message || error.message);
+  }
+};
+
+// Description: Connect Twitter account after OAuth
+// Endpoint: POST /api/accounts/twitter/connect
+// Request: { code: string, state: string, codeVerifier: string }
+// Response: { account: { id: string, username: string, name: string, profileImage: string, connected: boolean } }
+export const connectTwitterAccount = async (params: { code: string, state: string, codeVerifier: string }) => {
+  try {
+    const response = await api.post('/api/accounts/twitter/connect', params);
+    return response.data;
+  } catch (error) {
+    throw new Error(error?.response?.data?.message || error.message);
   }
 };
 
@@ -49,20 +68,6 @@ export const getBlueskyAccounts = async () => {
 export const getAccounts = async () => {
   try {
     const response = await api.get('/api/accounts');
-    return response.data;
-  } catch (error) {
-    console.error(error);
-    throw new Error(error?.response?.data?.error || error.message);
-  }
-};
-
-// Description: Connect a Twitter account using auth code
-// Endpoint: POST /api/accounts/twitter/connect
-// Request: { authCode: string }
-// Response: { success: boolean, message: string, account: { id: string, username: string, name: string, profileImage: string, isConnected: boolean } }
-export const connectTwitterAccount = async (authCode: string) => {
-  try {
-    const response = await api.post('/api/accounts/twitter/connect', { authCode });
     return response.data;
   } catch (error) {
     console.error(error);
