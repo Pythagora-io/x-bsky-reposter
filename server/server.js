@@ -14,6 +14,7 @@ const twitterAccountRoutes = require('./routes/twitterAccountRoutes'); // New ro
 const blueskyAccountRoutes = require('./routes/blueskyAccountRoutes.js'); // New route import
 const accountLinkRoutes = require('./routes/accountLinkRoutes.js'); // New route import
 const postRoutes = require('./routes/postRoutes'); // New route import for post routes
+const schedulerService = require('./services/schedulerService'); // Scheduler service import
 
 if (!process.env.DATABASE_URL) {
   console.error("Error: DATABASE_URL variables in .env missing.");
@@ -34,9 +35,6 @@ app.use(express.urlencoded({ extended: true }));
 // Authentication routes
 app.use(authRoutes);
 
-// Database connection
-connectDB();
-
 app.on("error", (error) => {
   console.error(`Server error: ${error.message}`);
   console.error(error.stack);
@@ -54,6 +52,17 @@ app.use('/api/accounts/bluesky', blueskyAccountRoutes); // New route setup
 app.use('/api/accounts', accountLinkRoutes); // New route setup
 app.use('/api/posts', postRoutes); // New route setup for post routes
 
+// Database connection
+connectDB().then(() => {
+  console.log('Database connected successfully');
+  // Start schedulers after database is connected
+  schedulerService.startAutoRepostScheduler();
+  // Emit the ready event
+  app.emit('ready');
+}).catch(err => {
+  console.error('Failed to connect to database:', err);
+});
+
 // If no routes handled the request, it's a 404
 app.use((req, res, next) => {
   res.status(404).send("Page not found.");
@@ -64,6 +73,13 @@ app.use((err, req, res, next) => {
   console.error(`Unhandled application error: ${err.message}`);
   console.error(err.stack);
   res.status(500).send("There was an error serving your request.");
+});
+
+process.on('SIGINT', () => {
+  console.log('Shutting down schedulers...');
+  schedulerService.stopAll();
+  console.log('Closing server...');
+  process.exit(0);
 });
 
 app.listen(port, () => {

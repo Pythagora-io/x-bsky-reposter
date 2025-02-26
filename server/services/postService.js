@@ -1,6 +1,8 @@
 const Post = require('../models/Post');
 const User = require('../models/User');
 const twitterService = require('./twitterService');
+const blueskyService = require('./blueskyService');
+const AccountLink = require('../models/AccountLink');
 
 /**
  * Get posts for a user with their Twitter and BlueSky information
@@ -125,6 +127,108 @@ exports.syncTwitterPosts = async (userId) => {
     return await this.getUserPosts(userId);
   } catch (error) {
     console.error('Error syncing Twitter posts:', error);
+    throw error;
+  }
+};
+
+/**
+ * Process new posts for a user and automatically repost to BlueSky
+ * @param {string} userId - User ID to process posts for
+ */
+exports.processNewPostsForUser = async (userId) => {
+  try {
+    console.log(`Processing new posts for user ${userId}`);
+
+    // 1. Fetch and sync latest Twitter posts
+    await this.syncTwitterPosts(userId);
+
+    // 2. Find all account links for this user
+    const accountLinks = await AccountLink.find({
+      userId,
+      active: true
+    });
+
+    if (!accountLinks || accountLinks.length === 0) {
+      console.log(`No account links found for user ${userId}`);
+      return;
+    }
+
+    console.log(`Found ${accountLinks.length} account links for user ${userId}`);
+
+    // 3. For each link, find posts that haven't been reposted yet
+    for (const link of accountLinks) {
+      // Find unsynced posts for this Twitter account
+      const unsyncedPosts = await Post.find({
+        userId,
+        'twitterPost.accountId': link.twitterAccountId,
+        isReposted: false
+      }).sort({ 'twitterPost.createdAt': -1 });
+
+      console.log(`Found ${unsyncedPosts.length} unsynced posts for Twitter account ${link.twitterAccountId}`);
+
+      if (unsyncedPosts.length === 0) {
+        continue;
+      }
+
+      // Get user for BlueSky credentials
+      const user = await User.findById(userId);
+      if (!user) {
+        console.log(`User ${userId} not found`);
+        continue;
+      }
+
+      // Find the BlueSky account for this link
+      const blueskyAccount = user.blueskyAccounts.find(
+        account => account.id === link.blueskyAccountId
+      );
+
+      if (!blueskyAccount || !blueskyAccount.isConnected) {
+        console.log(`BlueSky account ${link.blueskyAccountId} not found or not connected`);
+        continue;
+      }
+
+      // Get BlueSky credentials
+      const blueskyCredentials = {
+        did: blueskyAccount.id,
+        handle: blueskyAccount.username,
+        accessJwt: blueskyAccount.accessJwt,
+        refreshJwt: blueskyAccount.refreshJwt
+      };
+
+      // Process each unsynced post
+      for (const post of unsyncedPosts) {
+        try {
+          console.log(`Auto-reposting Twitter post ${post.twitterPost.id} to BlueSky`);
+
+          // Create post on BlueSky
+          const blueskyPost = await blueskyService.createPost(
+            post.twitterPost.text,
+            blueskyCredentials
+          );
+
+          // Update post in database
+          post.blueskyPost = {
+            id: blueskyPost.id,
+            text: blueskyPost.text,
+            createdAt: blueskyPost.createdAt,
+            likes: blueskyPost.likes,
+            reposts: blueskyPost.reposts
+          };
+          post.isReposted = true;
+          await post.save();
+
+          console.log(`Successfully auto-reposted Twitter post ${post.twitterPost.id} to BlueSky`);
+        } catch (postError) {
+          console.error(`Error auto-reposting post ${post._id}:`, postError);
+          // Continue with next post
+        }
+      }
+    }
+
+    console.log(`Completed processing posts for user ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('Error processing new posts:', error);
     throw error;
   }
 };
