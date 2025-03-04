@@ -1,4 +1,3 @@
-```markdown
 # X -> Bluesky Reposter
 
 This application automatically reposts your Twitter (X) posts onto BlueSky. It allows connecting multiple Twitter (X) accounts with multiple BlueSky accounts, viewing posts on both platforms, and detecting any missing reposts on BlueSky.
@@ -93,7 +92,6 @@ Concurrent execution of both the client and server is managed through a single c
 
 ### License
 
-Copyright (c) 2024.
-```
+The project is open source, licensed under the MIT License.
 
-This README file provides an overview, features, and step-by-step instructions to get the project up and running. Adjust the `<repository-url>` and any personal details where necessary.
+Copyright (c) 2025 Pythagora.
